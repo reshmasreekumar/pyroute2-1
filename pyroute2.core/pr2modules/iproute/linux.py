@@ -2,6 +2,8 @@
 import os
 import types
 import logging
+from enum import Flag
+from copy import deepcopy
 from socket import AF_INET
 from socket import AF_INET6
 from socket import AF_UNSPEC
@@ -767,6 +769,14 @@ class RTNL_API(object):
             {"vid": 20,
              "flags": 6}
 
+        One can specify `vlan range` in vid as a string of two uint16
+        values separated by a '-'.
+
+        E.g.::
+            {"vid": '100-200',
+             "flags": ["untagged"]}
+
+
         Commands:
 
         **add**
@@ -782,9 +792,32 @@ class RTNL_API(object):
             ip.vlan_filter("del", index=2, vlan_info={"vid": 200})
 
         '''
+        class vlan_range_flags(Flag):
+            RANGE_BEGIN = 0x8
+            RANGE_END = 0x10
+
         flags_req = NLM_F_REQUEST | NLM_F_ACK
         commands = {'add': (RTM_SETLINK, flags_req),
                     'del': (RTM_DELLINK, flags_req)}
+
+        vlaninfo = kwarg.get('vlan_info', None)
+        if vlaninfo:
+            vid = vlaninfo.get('vid', None)
+            if isinstance(vid, str) and len(vid.split('-')) == 2:
+                start_vid, end_vid = vid.split('-')
+                vlaninfo_grp = []
+                for vid, flag in ((start_vid, vlan_range_flags.RANGE_BEGIN),
+                                  (end_vid, vlan_range_flags.RANGE_END)):
+                    vlaninfo_copy = deepcopy(vlaninfo)
+                    vlaninfo_copy.update({'vid': int(vid)})
+                    existing_flags = vlaninfo_copy.get('flags', [])
+                    if isinstance(existing_flags, list):
+                        vlaninfo_copy.update({'flags':
+                                             existing_flags + [flag.name]})
+                    else:
+                        vlaninfo_copy['flags'] |= flag.value
+                    vlaninfo_grp.append(vlaninfo_copy)
+                kwarg.update({'vlan_info': vlaninfo_grp})
 
         kwarg['family'] = AF_BRIDGE
         kwarg['kwarg_filter'] = IPBridgeRequest

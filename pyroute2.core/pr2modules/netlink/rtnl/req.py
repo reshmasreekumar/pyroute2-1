@@ -599,7 +599,11 @@ class IPBridgeRequest(IPRequest):
                 (super(IPBridgeRequest, self)
                  .__setitem__('IFLA_AF_SPEC', {'attrs': []}))
             nla = ifinfmsg.af_spec_bridge.name2nla(key)
-            self['IFLA_AF_SPEC']['attrs'].append([nla, value])
+            if isinstance(value, list):
+                for val in value:
+                    self['IFLA_AF_SPEC']['attrs'].append([nla, val])
+            else:
+                self['IFLA_AF_SPEC']['attrs'].append([nla, value])
         else:
             super(IPBridgeRequest, self).__setitem__(key, value)
 
